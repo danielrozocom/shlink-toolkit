@@ -6,6 +6,8 @@
 // @author       Daniel Josue Rozo Vargas - www.danielrozo.com
 // @match        https://app.shlink.io/*
 // @icon         https://app.shlink.io/icons/icon-310x310.png
+// @updateURL    https://raw.githubusercontent.com/danielrozocom/shlink-toolkit/main/shlink-toolkit.user.js
+// @downloadURL  https://raw.githubusercontent.com/danielrozocom/shlink-toolkit/main/shlink-toolkit.user.js
 // @grant        none
 // @run-at       document-start
 // ==/UserScript==
