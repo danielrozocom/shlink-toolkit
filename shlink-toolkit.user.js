@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Shlink Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Bypasses pagination to load all items simultaneously and standardizes date and time formats globally.
 // @author       Daniel Josue Rozo Vargas - www.danielrozo.com
 // @match        https://app.shlink.io/*
@@ -15,16 +15,38 @@
 (function () {
     'use strict';
 
-    // Intercept fetch requests to force itemsPerPage parameter for short-urls listing
+    // Intercept fetch requests (handling string, Request object, or URL)
     const originalFetch = window.fetch;
     window.fetch = async function (...args) {
         let [resource, config] = args;
 
-        if (typeof resource === 'string' && resource.includes('/rest/v3/short-urls')) {
-            const urlObj = new URL(resource, window.location.origin);
-            // Force high itemsPerPage to load everything on a single page, bypassing pagination
-            urlObj.searchParams.set('itemsPerPage', '1000');
-            resource = urlObj.toString();
+        try {
+            let urlString = '';
+            let isRequestInstance = false;
+
+            if (typeof resource === 'string') {
+                urlString = resource;
+            } else if (resource instanceof Request) {
+                urlString = resource.url;
+                isRequestInstance = true;
+            } else if (resource instanceof URL) {
+                urlString = resource.toString();
+            }
+
+            if (urlString && urlString.includes('/rest/v3/short-urls')) {
+                const urlObj = new URL(urlString, window.location.origin);
+                // Force high itemsPerPage to load everything on a single page, bypassing pagination
+                urlObj.searchParams.set('itemsPerPage', '1000');
+                
+                const modifiedUrl = urlObj.toString();
+                if (isRequestInstance) {
+                    resource = new Request(modifiedUrl, resource);
+                } else {
+                    resource = modifiedUrl;
+                }
+            }
+        } catch (e) {
+            console.error('[Shlink Toolkit] Error modifying fetch request:', e);
         }
 
         return originalFetch.apply(this, [resource, config]);
@@ -39,15 +61,25 @@
     function formatDateTimeElement(targetElement) {
         if (!targetElement) return;
 
-        let dateObject = null;
-        const originalText = targetElement.textContent.trim();
+        let rawDateStr = targetElement.getAttribute('data-shlink-raw-date');
 
-        if (targetElement.tagName === 'TIME' && targetElement.hasAttribute('datetime')) {
-            const datetimeValue = targetElement.getAttribute('datetime');
-            dateObject = !isNaN(datetimeValue) ? new Date(parseInt(datetimeValue, 10)) : new Date(datetimeValue);
-        } else if (originalText) {
-            dateObject = new Date(originalText);
+        if (!rawDateStr) {
+            if (targetElement.tagName === 'TIME' && targetElement.hasAttribute('datetime')) {
+                rawDateStr = targetElement.getAttribute('datetime');
+            } else if (targetElement.hasAttribute('title') && targetElement.getAttribute('title')) {
+                rawDateStr = targetElement.getAttribute('title');
+            } else {
+                rawDateStr = targetElement.textContent.trim();
+            }
+
+            if (rawDateStr) {
+                targetElement.setAttribute('data-shlink-raw-date', rawDateStr);
+            }
         }
+
+        if (!rawDateStr) return;
+
+        let dateObject = !isNaN(rawDateStr) ? new Date(parseInt(rawDateStr, 10)) : new Date(rawDateStr);
 
         if (dateObject && !isNaN(dateObject.getTime())) {
             const day = String(dateObject.getDate()).padStart(2, '0');
@@ -71,40 +103,53 @@
     }
 
     /**
-     * Scans and formats all date cells and time tags in the current view
+     * Scans and formats all date cells, time tags, and timestamp elements in the current view
      */
     function processGlobalDates() {
-        const matchingElements = document.querySelectorAll('time, td[data-column*="Created"], td[data-column*="Fecha"]');
+        const matchingElements = document.querySelectorAll(
+            'time, td[data-column*="Created" i], td[data-column*="Fecha" i], td[data-column*="date" i], [title*="202"], [datetime]'
+        );
         matchingElements.forEach(element => {
             formatDateTimeElement(element);
         });
     }
 
-    // DOM MutationObserver setup once body is available
-    window.addEventListener('DOMContentLoaded', () => {
-        const domObserver = new MutationObserver((mutationsList) => {
-            let hasNewNodes = false;
-            mutationsList.forEach(mutation => {
-                if (mutation.addedNodes.length > 0) {
-                    hasNewNodes = true;
-                }
-            });
-
-            if (hasNewNodes) {
+    let isScheduled = false;
+    function scheduleDateProcessing() {
+        if (!isScheduled) {
+            isScheduled = true;
+            requestAnimationFrame(() => {
                 processGlobalDates();
-            }
+                isScheduled = false;
+            });
+        }
+    }
+
+    // Initialize observer once DOM starts becoming available
+    function setupObserver() {
+        const targetNode = document.body || document.documentElement;
+        if (!targetNode) return;
+
+        const domObserver = new MutationObserver(() => {
+            scheduleDateProcessing();
         });
 
-        domObserver.observe(document.body, {
+        domObserver.observe(targetNode, {
             childList: true,
-            subtree: true
+            subtree: true,
+            characterData: true
         });
-    });
 
-    // Fallback timers for initial asynchronous loads
-    window.addEventListener('load', () => {
-        setTimeout(processGlobalDates, 500);
-        setTimeout(processGlobalDates, 1500);
-    });
+        scheduleDateProcessing();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupObserver);
+    } else {
+        setupObserver();
+    }
+
+    // Periodic safety sweep for SPA transitions and slow network responses
+    setInterval(processGlobalDates, 1500);
 
 })();

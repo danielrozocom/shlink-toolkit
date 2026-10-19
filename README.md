@@ -3,7 +3,7 @@
 Un userscript para mejorar y potenciar la interfaz web oficial de [Shlink](https://app.shlink.io/).
 
 [![Instalar Userscript](https://img.shields.io/badge/Instalar%20con-Tampermonkey-00485B?style=for-the-badge&logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/danielrozocom/shlink-toolkit/main/shlink-toolkit.user.js)
-[![Versión](https://img.shields.io/badge/version-1.5-blue?style=for-the-badge)](shlink-toolkit.user.js)
+[![Versión](https://img.shields.io/badge/version-1.6-blue?style=for-the-badge)](shlink-toolkit.user.js)
 [![Autor](https://img.shields.io/badge/autor-Daniel%20Rozo-orange?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.danielrozo.com)
 
 ---
